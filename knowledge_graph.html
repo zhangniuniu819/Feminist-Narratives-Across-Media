@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>女性主义叙事跨媒介知识图谱</title>
+<script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'SimHei', sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---- Header ---- */
+.header {
+  background: linear-gradient(135deg, #16213e, #0f3460);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid #2a2a4a;
+  z-index: 10;
+}
+.header h1 {
+  font-size: 1.4em;
+  background: linear-gradient(135deg, #e94560, #fca5a5);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+}
+
+/* ---- Filters ---- */
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.filter-btn {
+  padding: 6px 16px;
+  border: 1px solid #3a3a5a;
+  border-radius: 20px;
+  background: transparent;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.filter-btn:hover { border-color: #e94560; color: #e94560; }
+.filter-btn.active { background: #e94560; border-color: #e94560; color: #fff; }
+
+.search-box {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #3a3a5a;
+  background: #0f0f23;
+  color: #e0e0e0;
+  font-size: 0.9em;
+  width: 200px;
+  outline: none;
+}
+.search-box:focus { border-color: #e94560; }
+.search-box::placeholder { color: #666; }
+
+/* ---- Main Layout ---- */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ---- Graph Container ---- */
+#cy {
+  flex: 1;
+  background: #1a1a2e;
+}
+
+/* ---- Side Panel ---- */
+.side-panel {
+  width: 340px;
+  background: #16213e;
+  border-left: 1px solid #2a2a4a;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 20px;
+  transition: all 0.3s;
+}
+.side-panel.hidden { width: 0; padding: 0; overflow: hidden; }
+
+.panel-section { margin-bottom: 20px; }
+.panel-section h3 {
+  font-size: 0.85em;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.panel-node-name {
+  font-size: 1.3em;
+  font-weight: bold;
+  color: #f0f0f0;
+  margin-bottom: 4px;
+}
+.panel-node-type {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.8em;
+  margin-bottom: 12px;
+}
+.type-work { background: #e94560; color: #fff; }
+.type-theme { background: #4ecdc4; color: #111; }
+.type-emotion { background: #45b7d1; color: #111; }
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.9em;
+  border-bottom: 1px solid #1a1a3a;
+}
+.stat-label { color: #888; }
+.stat-value { color: #e0e0e0; font-weight: bold; }
+
+.neighbor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.neighbor-tag {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+.neighbor-tag:hover { opacity: 0.8; transform: scale(1.03); }
+.neighbor-tag.theme { background: rgba(78,205,196,0.2); border-color: #4ecdc4; color: #4ecdc4; }
+.neighbor-tag.emotion { background: rgba(69,183,209,0.2); border-color: #45b7d1; color: #45b7d1; }
+.neighbor-tag.work { background: rgba(233,69,96,0.2); border-color: #e94560; color: #e94560; }
+
+.empty-hint {
+  color: #555;
+  font-size: 0.95em;
+  text-align: center;
+  margin-top: 60px;
+  line-height: 1.6;
+}
+
+/* ---- Legend ---- */
+.legend {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(22,33,62,0.9);
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid #2a2a4a;
+  font-size: 0.85em;
+  z-index: 5;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ---- Stats bar ---- */
+.stats-bar {
+  position: absolute;
+  bottom: 20px;
+  right: 360px;
+  background: rgba(22,33,62,0.85);
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #2a2a4a;
+  font-size: 0.82em;
+  color: #999;
+  z-index: 5;
+}
+.stats-bar span { color: #e94560; font-weight: bold; }
+
+/* ---- Tip ---- */
+.tip {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.7);
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.8em;
+  color: #888;
+  pointer-events: none;
+  z-index: 4;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <h1>女性主义叙事 · 跨媒介知识图谱</h1>
+  <div class="filters">
+    <button class="filter-btn active" data-media="all" onclick="filterMedia('all', this)">全部</button>
+    <button class="filter-btn" data-media="book" onclick="filterMedia('book', this)">&#x1F4DA; 书籍</button>
+    <button class="filter-btn" data-media="film" onclick="filterMedia('film', this)">&#x1F3AC; 电影</button>
+    <button class="filter-btn" data-media="talk" onclick="filterMedia('talk', this)">&#x1F3A4; 脱口秀</button>
+    <input class="search-box" placeholder="&#x1F50D; 搜索作品名..." oninput="searchNode(this.value)">
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div id="cy"></div>
+
+  <!-- Side Panel -->
+  <div class="side-panel" id="sidePanel">
+    <div id="panelContent">
+      <p class="empty-hint">&#x1F446; 点击图谱中的节点<br>查看详细信息</p>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#e94560;border-radius:3px"></span> 作品</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#4ecdc4;border-radius:3px"></span> 主题</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#45b7d1;border-radius:6px"></span> 情感</div>
+    <div class="legend-item" style="margin-top:4px;color:#888;">
+      <span style="display:inline-block;width:20px;height:2px;background:#e94560;opacity:0.5"></span> 具有主题
+    </div>
+    <div class="legend-item" style="color:#888;">
+      <span style="display:inline-block;width:20px;height:2px;background:#45b7d1;opacity:0.5"></span> 引发情感
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="statsBar">
+    共 <span id="statNodes">-</span> 个节点 · <span id="statEdges">-</span> 条关系
+    &nbsp;|&nbsp; 作品 <span id="statWorks">-</span>
+    &nbsp;|&nbsp; 主题 <span id="statThemes">-</span>
+    &nbsp;|&nbsp; 情感 <span id="statEmos">-</span>
+  </div>
+
+  <!-- Tip -->
+  <div class="tip">滚轮缩放 · 拖拽平移 · 点击节点查看详情 · 拖拽节点调整位置</div>
+</div>
+
+<script src="graph_data.js"></script>
+<script>
+// ==================== Init ====================
+const container = document.getElementById('cy');
+let cy;
+
+// Node style mapping
+const STYLES = {
+  work:   { shape: 'round-rectangle', color: '#e94560', size: 28, icon: '&#x1F3AC;' },
+  theme:  { shape: 'round-rectangle', color: '#4ecdc4', size: 35, icon: '&#x1F3F7;' },
+  emotion:{ shape: 'diamond',        color: '#45b7d1', size: 22, icon: '&#x1F4AD;' },
+};
+
+function buildElements() {
+  const nodes = GRAPH_DATA.nodes.map(n => {
+    const s = STYLES[n.type] || STYLES.work;
+    let label = n.label;
+    if (label.length > 12) label = label.substring(0, 12) + '...';
+    return {
+      data: {
+        id: n.id,
+        label: label,
+        fullLabel: n.label,
+        type: n.type,
+        media: n.media || 'all',
+      },
+      classes: `${n.type} media-${n.media}`,
+    };
+  });
+
+  const edges = GRAPH_DATA.edges.map(e => ({
+    data: {
+      id: `${e.source}_${e.target}`,
+      source: e.source,
+      target: e.target,
+      type: e.type,
+      label: e.label,
+    },
+    classes: e.type,
+  }));
+
+  return { nodes, edges };
+}
+
+cy = cytoscape({
+  container,
+  elements: buildElements(),
+  style: [
+    // ---- Work nodes (round-rect) ----
+    {
+      selector: 'node.work',
+      style: {
+        'background-color': '#e94560',
+        'shape': 'round-rectangle',
+        'width': 28,
+        'height': 28,
+        'label': 'data(label)',
+        'color': '#fff',
+        'font-size': '9px',
+        'text-halign': 'center',
+        'text-valign': 'center',
+        'text-wrap': 'wrap',
+        'text-max-width': '50px',
+        'border-width': 2,
+        'border-color': '#e94560',
+      }
+    },
+    // ---- Theme nodes (round-rect, larger) ----
+    {
+      selector: 'node.theme',
+      style: {
+        'background-color': '#4ecdc4',
+        'shape': 'round-rectangle',
+        'width': 40,
+        'height': 30,
+        'label': 'data(label)',
+        'color': '#111',
+        'font-size': '10px',
+        'font-weight': 'bold',
+        'text-halign': 'center',
+        'text-valign': 'center',
+        'border-width': 3,
+        'border-color': '#4ecdc4',
+      }
+    },
+    // ---- Emotion nodes (diamond) ----
+    {
+      selector: 'node.emotion',
+      style: {
+        'background-color': '#45b7d1',
+        'shape': 'diamond',
+        'width': 22,
+        'height': 22,
+        'label': 'data(label)',
+        'color': '#111',
+        'font-size': '8px',
+        'text-halign': 'center',
+        'text-valign': 'center',
+        'border-width': 1,
+        'border-color': '#45b7d1',
+      }
+    },
+    // ---- Edges ----
+    {
+      selector: 'edge.has_theme',
+      style: {
+        'width': 1.5,
+        'line-color': 'rgba(233, 69, 96, 0.4)',
+        'target-arrow-color': 'rgba(233, 69, 96, 0.6)',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.8,
+        'curve-style': 'bezier',
+      }
+    },
+    {
+      selector: 'edge.triggers_emotion',
+      style: {
+        'width': 1,
+        'line-color': 'rgba(69, 183, 209, 0.35)',
+        'line-style': 'dashed',
+        'target-arrow-color': 'rgba(69, 183, 209, 0.5)',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.6,
+        'curve-style': 'bezier',
+      }
+    },
+    // ---- Highlighted ----
+    {
+      selector: 'node.highlight',
+      style: {
+        'border-width': 4,
+        'border-color': '#fca5a5',
+        'z-index': 9999,
+      }
+    },
+    {
+      selector: 'node.dimmed',
+      style: { 'opacity': 0.15, 'z-index': 1 }
+    },
+    {
+      selector: 'edge.dimmed',
+      style: { 'opacity': 0.05, 'z-index': 1 }
+    },
+    {
+      selector: 'node.hidden',
+      style: { 'display': 'none' }
+    },
+    {
+      selector: 'edge.hidden',
+      style: { 'display': 'none' }
+    },
+    // ---- Hover ----
+    {
+      selector: 'node:active',
+      style: { 'overlay-opacity': 0 }
+    },
+  ],
+  layout: {
+    name: 'cose',
+    idealEdgeLength: 120,
+    nodeOverlap: 30,
+    refresh: 20,
+    fit: true,
+    padding: 60,
+    randomize: false,
+    componentSpacing: 80,
+    nodeRepulsion: 8000,
+    edgeElasticity: 200,
+    nestingFactor: 2,
+    gravity: 100,
+    numIter: 2000,
+    initialTemp: 200,
+    coolingFactor: 0.95,
+    minTemp: 1.0,
+  },
+  wheelSensitivity: 0.3,
+  minZoom: 0.2,
+  maxZoom: 3,
+});
+
+// ==================== Stats ====================
+const allNodes = cy.nodes();
+const allEdges = cy.edges();
+document.getElementById('statNodes').textContent = allNodes.length;
+document.getElementById('statEdges').textContent = allEdges.length;
+document.getElementById('statWorks').textContent = allNodes.filter(n => n.data('type') === 'work').length;
+document.getElementById('statThemes').textContent = allNodes.filter(n => n.data('type') === 'theme').length;
+document.getElementById('statEmos').textContent = allNodes.filter(n => n.data('type') === 'emotion').length;
+
+// ==================== Interactions ====================
+let selectedNode = null;
+
+function showDetail(node) {
+  const data = node.data();
+  const type = data.type;
+  const panel = document.getElementById('panelContent');
+  const typeInfo = STYLES[type] || STYLES.work;
+
+  // Find neighbors
+  const neighbors = node.neighborhood().nodes().filter(n => n.id() !== node.id());
+  const themeNeighbors = neighbors.filter(n => n.data('type') === 'theme');
+  const emotionNeighbors = neighbors.filter(n => n.data('type') === 'emotion');
+  const workNeighbors = neighbors.filter(n => n.data('type') === 'work');
+
+  let neighborHTML = '';
+  if (themeNeighbors.length > 0) {
+    neighborHTML += '<div class="panel-section"><h3>关联主题</h3><div class="neighbor-list">';
+    themeNeighbors.forEach(n => {
+      neighborHTML += `<span class="neighbor-tag theme" onclick="focusNode('${n.id()}')">${n.data('fullLabel')}</span>`;
+    });
+    neighborHTML += '</div></div>';
+  }
+  if (emotionNeighbors.length > 0) {
+    neighborHTML += '<div class="panel-section"><h3>关联情感</h3><div class="neighbor-list">';
+    emotionNeighbors.forEach(n => {
+      neighborHTML += `<span class="neighbor-tag emotion" onclick="focusNode('${n.id()}')">${n.data('fullLabel')}</span>`;
+    });
+    neighborHTML += '</div></div>';
+  }
+  if (workNeighbors.length > 0) {
+    neighborHTML += '<div class="panel-section"><h3>关联作品</h3><div class="neighbor-list">';
+    workNeighbors.forEach(n => {
+      neighborHTML += `<span class="neighbor-tag work" onclick="focusNode('${n.id()}')">${n.data('fullLabel')}</span>`;
+    });
+    neighborHTML += '</div></div>';
+  }
+
+  let statsHTML = '';
+  if (type === 'work') {
+    statsHTML = `<div class="panel-section"><h3>作品信息</h3>
+      <div class="stat-row"><span class="stat-label">媒介</span><span class="stat-value">${data.media === 'book' ? '书籍' : data.media === 'film' ? '电影' : '脱口秀'}</span></div>
+      <div class="stat-row"><span class="stat-label">关联主题</span><span class="stat-value">${themeNeighbors.length}</span></div>
+    </div>`;
+  } else if (type === 'theme') {
+    statsHTML = `<div class="panel-section"><h3>主题信息</h3>
+      <div class="stat-row"><span class="stat-label">关联作品</span><span class="stat-value">${workNeighbors.length}</span></div>
+      <div class="stat-row"><span class="stat-label">引发情感</span><span class="stat-value">${emotionNeighbors.length}</span></div>
+    </div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="panel-node-name">${data.fullLabel}</div>
+    <span class="panel-node-type type-${type}">${type === 'work' ? (data.media === 'book' ? '书籍' : data.media === 'film' ? '电影' : '脱口秀') : type === 'theme' ? '主题' : '情感'}</span>
+    ${statsHTML}
+    ${neighborHTML}
+  `;
+}
+
+function highlightNeighbors(node) {
+  const neighbors = node.neighborhood();
+  cy.elements().addClass('dimmed');
+  neighbors.removeClass('dimmed');
+  node.removeClass('dimmed').addClass('highlight');
+}
+
+function resetHighlight() {
+  cy.elements().removeClass('dimmed').removeClass('highlight');
+  selectedNode = null;
+  document.getElementById('panelContent').innerHTML = '<p class="empty-hint">&#x1F446; 点击图谱中的节点<br>查看详细信息</p>';
+}
+
+cy.on('click', 'node', function(evt) {
+  const node = evt.target;
+  if (selectedNode && selectedNode.id() === node.id()) {
+    resetHighlight();
+    cy.fit(undefined, 50);
+    return;
+  }
+  selectedNode = node;
+  highlightNeighbors(node);
+  showDetail(node);
+});
+
+cy.on('click', function(evt) {
+  if (evt.target === cy) {
+    resetHighlight();
+  }
+});
+
+// ==================== Filter by Media ====================
+let activeMedia = 'all';
+window.filterMedia = function(media, btn) {
+  activeMedia = media;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  if (media === 'all') {
+    cy.elements().removeClass('hidden');
+  } else {
+    cy.elements().addClass('hidden');
+    // Show: all themes, all emotions, matching works, and all edges between visible nodes
+    cy.nodes('[type="theme"]').removeClass('hidden');
+    cy.nodes('[type="emotion"]').removeClass('hidden');
+    cy.nodes(`[media="${media}"]`).removeClass('hidden');
+    // Show edges connecting visible nodes
+    cy.edges().forEach(edge => {
+      const src = edge.source();
+      const tgt = edge.target();
+      if (!src.hasClass('hidden') && !tgt.hasClass('hidden')) {
+        edge.removeClass('hidden');
+      }
+    });
+  }
+  cy.fit(undefined, 50);
+};
+
+// ==================== Search ====================
+window.searchNode = function(query) {
+  resetHighlight();
+  cy.elements().removeClass('hidden');
+  if (activeMedia !== 'all') {
+    filterMedia(activeMedia, document.querySelector(`[data-media="${activeMedia}"]`));
+  }
+
+  if (!query.trim()) {
+    cy.fit(undefined, 50);
+    return;
+  }
+
+  const q = query.trim().toLowerCase();
+  let found = null;
+  cy.nodes().forEach(node => {
+    if (node.data('fullLabel').toLowerCase().includes(q)) {
+      if (!found) found = node;
+      node.removeClass('hidden').removeClass('dimmed');
+    }
+  });
+
+  if (found) {
+    highlightNeighbors(found);
+    cy.animate({ center: { eles: found }, zoom: 1.5 }, { duration: 500 });
+    showDetail(found);
+    selectedNode = found;
+  }
+};
+
+// ==================== Focus Node ====================
+window.focusNode = function(nodeId) {
+  const node = cy.getElementById(nodeId);
+  if (node.length === 0) return;
+  resetHighlight();
+  highlightNeighbors(node);
+  showDetail(node);
+  selectedNode = node;
+  cy.animate({ center: { eles: node }, zoom: 1.3 }, { duration: 400 });
+};
+
+// ==================== Keyboard ====================
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    resetHighlight();
+    cy.fit(undefined, 50);
+  }
+  if (e.key === 'r' || e.key === 'R') {
+    cy.fit(undefined, 50);
+  }
+});
+
+// ==================== Run layout ====================
+const layout = cy.layout({
+  name: 'cose',
+  idealEdgeLength: 120,
+  nodeOverlap: 30,
+  refresh: 20,
+  fit: true,
+  padding: 60,
+  randomize: false,
+  componentSpacing: 80,
+  nodeRepulsion: 8000,
+  edgeElasticity: 200,
+  nestingFactor: 2,
+  gravity: 100,
+  numIter: 3000,
+  initialTemp: 200,
+  coolingFactor: 0.95,
+  minTemp: 1.0,
+  stop: function() {
+    cy.fit(undefined, 50);
+  }
+});
+layout.run();
+
+console.log('Knowledge graph ready. Nodes:', allNodes.length, 'Edges:', allEdges.length);
+</script>
+</body>
+</html>
